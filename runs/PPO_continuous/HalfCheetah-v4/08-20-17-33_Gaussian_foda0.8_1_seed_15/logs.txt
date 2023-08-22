@@ -1,0 +1,15 @@
+08-20-17-33:	evaluate_num:1 	 evaluate_reward:-10.145475351063002 	
+08-20-17-33:	evaluate_num:2 	 evaluate_reward:337.6522966045419 	
+08-20-17-33:	evaluate_num:3 	 evaluate_reward:308.62732906459485 	
+08-20-17-33:	evaluate_num:4 	 evaluate_reward:50.88125099075127 	
+08-20-17-33:	evaluate_num:5 	 evaluate_reward:723.1881363227936 	
+08-20-17-33:	evaluate_num:6 	 evaluate_reward:-298.06378918728603 	
+08-20-17-33:	evaluate_num:7 	 evaluate_reward:806.5084849786599 	
+08-20-17-33:	evaluate_num:8 	 evaluate_reward:1166.9317106278518 	
+08-20-17-33:	evaluate_num:9 	 evaluate_reward:1188.9233220011415 	
+08-20-17-33:	evaluate_num:10 	 evaluate_reward:1217.9902703455325 	
+08-20-17-33:	evaluate_num:11 	 evaluate_reward:1126.3760458246136 	
+08-20-17-33:	evaluate_num:12 	 evaluate_reward:1183.6537891268144 	
+08-20-17-33:	evaluate_num:13 	 evaluate_reward:1196.5452511077865 	
+08-20-17-33:	evaluate_num:14 	 evaluate_reward:1271.1566576498913 	
+08-20-17-33:	evaluate_num:15 	 evaluate_reward:1302.7622836038831 	

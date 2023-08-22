@@ -115,13 +115,16 @@ class PPO_continuous():
         self.use_grad_clip = args.use_grad_clip
         self.use_lr_decay = args.use_lr_decay
         self.use_adv_norm = args.use_adv_norm
+        self.foresight_eta = args.foresight_eta
+        self.device = args.device
+        self.writer = args.writer 
 
         if self.policy_dist == "Beta":
-            self.actor = Actor_Beta(args)
+            self.actor = Actor_Beta(args).to(self.device)
         else:
-            self.actor = Actor_Gaussian(args)
-        self.critic = Critic(args)
-
+            self.actor = Actor_Gaussian(args).to(self.device)
+        self.critic = Critic(args).to(self.device)
+        
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
             self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr_a, eps=1e-5)
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c, eps=1e-5)
@@ -130,15 +133,15 @@ class PPO_continuous():
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c)
 
     def evaluate(self, s):  # When evaluating the policy, we only use the mean
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0).to(self.device)
         if self.policy_dist == "Beta":
-            a = self.actor.mean(s).detach().numpy().flatten()
+            a = self.actor.mean(s).detach().cpu().numpy().flatten()
         else:
-            a = self.actor(s).detach().numpy().flatten()
+            a = self.actor(s).detach().cpu().numpy().flatten()
         return a
 
     def choose_action(self, s):
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0).to(self.device)
         if self.policy_dist == "Beta":
             with torch.no_grad():
                 dist = self.actor.get_dist(s)
@@ -150,10 +153,10 @@ class PPO_continuous():
                 a = dist.sample()  # Sample the action according to the probability distribution
                 a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
                 a_logprob = dist.log_prob(a)  # The log probability density of the action
-        return a.numpy().flatten(), a_logprob.numpy().flatten()
+        return a.cpu().numpy().flatten(), a_logprob.cpu().numpy().flatten()
 
     def update(self, replay_buffer, total_steps):
-        s, a, a_logprob, r, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
+        s, a, a_logprob, r, s_, dw, done, current_traj_return, initial_s = replay_buffer.numpy_to_tensor()  # Get training data
         """
             Calculate the advantage using GAE
             'dw=True' means dead or win, there is no next state s'
@@ -161,20 +164,46 @@ class PPO_continuous():
         """
         adv = []
         gae = 0
+        ################################################## foresight eta ###########################################################
+        if total_steps > 5e4:
+            foresight_eta = self.foresight_eta
+        else:
+            foresight_eta = 0 
+        
+
+        with torch.no_grad():
+            advantage_batch = current_traj_return + self.critic(s_) - self.critic(initial_s)
+            # print(torch.mean(advantage_batch).item())
+            self.writer.add_scalar('foda/foresight', torch.mean(advantage_batch).item(), global_step=total_steps)
+
+            # advantage_batch = torch.clip(advantage_batch, 0, None)
+            # advantage_batch = (advantage_batch - torch.mean(advantage_batch)) / (torch.std(advantage_batch) + 1e-5)
+            advantage_batch = (advantage_batch - torch.min(advantage_batch)) / (torch.max(advantage_batch) - torch.min(advantage_batch) + 1e-5)
+
         with torch.no_grad():  # adv and v_target have no gradient
             vs = self.critic(s)
             vs_ = self.critic(s_)
             deltas = r + self.gamma * (1.0 - dw) * vs_ - vs
-            for delta, d in zip(reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())):
+            for delta, d in zip(reversed(deltas.flatten().cpu().numpy()), reversed(done.flatten().cpu().numpy())):
                 gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                 adv.insert(0, gae)
-            adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
+            adv = torch.tensor(adv, dtype=torch.float).view(-1, 1).to(self.device)
             v_target = adv + vs
+            # adv = adv + self.foresight_eta * advantage_batch
             if self.use_adv_norm:  # Trick 1:advantage normalization
                 adv = ((adv - adv.mean()) / (adv.std() + 1e-5))
 
+
+        
+
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
+            # dist_new = self.actor.get_dist(s)
+            # new_logprob = dist_new.log_prob(a)
+
+            # if (a_logprob - new_logprob).mean().item() > 0.015:
+            #     break
+
             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
                 dist_now = self.actor.get_dist(s[index])
@@ -185,7 +214,11 @@ class PPO_continuous():
 
                 surr1 = ratios * adv[index]  # Only calculate the gradient of 'a_logprob_now' in ratios
                 surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
-                actor_loss = -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy  # Trick 5: policy entropy
+
+                actor_loss = - (torch.min(surr1, surr2) + foresight_eta * advantage_batch[index] * torch.min(surr1, surr2)) \
+                    - self.entropy_coef * dist_entropy  # Trick 5: policy entropy  ##                
+                self.writer.add_scalar('foda/original', torch.mean(torch.min(surr1, surr2)).item(), global_step=total_steps)
+
                 # Update actor
                 self.optimizer_actor.zero_grad()
                 actor_loss.mean().backward()

@@ -1,0 +1,10 @@
+08-19-16-36:	evaluate_num:1 	 evaluate_reward:-10.145475351063002 	
+08-19-16-36:	evaluate_num:2 	 evaluate_reward:337.6522966045419 	
+08-19-16-36:	evaluate_num:3 	 evaluate_reward:308.62732906459485 	
+08-19-16-36:	evaluate_num:4 	 evaluate_reward:50.88125099075127 	
+08-19-16-36:	evaluate_num:5 	 evaluate_reward:723.1881363227936 	
+08-19-16-36:	evaluate_num:6 	 evaluate_reward:-476.3586143140704 	
+08-19-16-36:	evaluate_num:7 	 evaluate_reward:-369.992305216207 	
+08-19-16-36:	evaluate_num:8 	 evaluate_reward:-600.38079780583 	
+08-19-16-36:	evaluate_num:9 	 evaluate_reward:-394.02725257361135 	
+08-19-16-36:	evaluate_num:10 	 evaluate_reward:-1056.8833170433359 	
